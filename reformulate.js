@@ -46,10 +46,9 @@ export async function reformulate(rawText) {
 }
 
 // Utilisation en ligne de commande : node reformulate.js <fichier.txt>
-const inputFile = process.argv[2];
-if (inputFile) {
+if (typeof process !== 'undefined' && process.argv[2]) {
   const { readFile } = await import("node:fs/promises");
-  const rawText = await readFile(inputFile, "utf-8");
+  const rawText = await readFile(process.argv[2], "utf-8");
   const result = await reformulate(rawText);
   console.log(result);
 }
