@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadTube - Lire les vidéos YouTube</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#fef2f2', 100: '#fee2e2', 500: '#ef4444', 600: '#dc2626', 700: '#b91c1c' },
+            dark: { 800: '#1a1a2e', 900: '#0f0f23', 950: '#0a0a1a' },
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #0f0f23; }
+
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      overflow: hidden;
+      border-radius: 12px;
+      background: #000;
+    }
+    .video-container iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    .search-bar {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+    }
+    .search-bar:focus-within {
+      border-color: #ef4444;
+      background: rgba(255,255,255,0.1);
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      transition: all 0.25s ease;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 25px rgba(239, 68, 68, 0.35); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.6; transform: none; box-shadow: none; cursor: not-allowed; }
+
+    .text-panel {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+    }
+
+    .text-panel::-webkit-scrollbar { width: 6px; }
+    .text-panel::-webkit-scrollbar-track { background: transparent; }
+    .text-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+    .text-panel::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+    .prose-content { font-size: 1.05rem; line-height: 1.9; color: rgba(255,255,255,0.82); }
+    .prose-content p { margin-bottom: 1.2em; }
+
+    .hero-glow {
+      position: absolute;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    .loading-dots span {
+      animation: blink 1.4s infinite both;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.2; }
+      40% { opacity: 1; }
+    }
+
+    .fade-in { animation: fadeIn 0.5s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    .copy-toast {
+      animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+    }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+    .stat-chip {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen text-white relative overflow-x-hidden">
+
+  <!-- Background glows -->
+  <div class="hero-glow bg-red-500 top-[-200px] left-[-100px] fixed"></div>
+  <div class="hero-glow bg-purple-600 bottom-[-200px] right-[-100px] fixed"></div>
+
+  <!-- Navbar -->
+  <nav class="sticky top-0 z-50 border-b border-white/5" style="background: rgba(15,15,35,0.85); backdrop-filter: blur(20px);">
+    <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </div>
+        <span class="text-xl font-bold tracking-tight">Read<span class="text-red-500">Tube</span></span>
+      </div>
+      <a href="https://github.com" target="_blank" class="text-white/40 hover:text-white/70 text-sm transition">GitHub</a>
+    </div>
+  </nav>
+
+  <!-- Hero / Search Section -->
+  <div id="heroSection" class="max-w-3xl mx-auto px-4 pt-24 pb-16 text-center">
+    <h1 class="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+      Lis les vidéos YouTube<br>
+      <span class="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">comme un article</span>
+    </h1>
+    <p class="text-white/50 text-lg mb-10 max-w-lg mx-auto">
+      Colle un lien, et on transforme la transcription en texte fluide, clair et agréable à lire.
+    </p>
+
+    <div class="search-bar rounded-2xl p-1.5 flex gap-2">
+      <input id="urlInput"
+             type="text"
+             placeholder="https://www.youtube.com/watch?v=..."
+             class="flex-1 bg-transparent px-5 py-4 text-white text-lg placeholder-white/30 outline-none"
+             onkeydown="if(event.key==='Enter') processVideo()">
+      <button onclick="processVideo()"
+              id="btnProcess"
+              class="btn-primary text-white font-semibold px-8 py-4 rounded-xl text-base flex items-center gap-2 whitespace-nowrap">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        <span id="btnText">Transformer</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingSection" class="hidden max-w-md mx-auto px-4 text-center py-20">
+    <div class="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-red-500/20 to-red-700/20 border border-red-500/20 flex items-center justify-center">
+      <svg class="w-8 h-8 text-red-400 animate-spin" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/>
+      </svg>
+    </div>
+    <p id="loadingStatus" class="text-white/60 text-lg">Extraction de la transcription<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span></p>
+    <p class="text-white/30 text-sm mt-2">Cela peut prendre 15 à 30 secondes</p>
+  </div>
+
+  <!-- Result Section -->
+  <div id="resultSection" class="hidden max-w-7xl mx-auto px-4 pb-16 fade-in">
+
+    <!-- Title + Stats -->
+    <div class="mb-8">
+      <h2 id="videoTitle" class="text-2xl md:text-3xl font-bold mb-3"></h2>
+      <div class="flex flex-wrap gap-2">
+        <span id="statChars" class="stat-chip text-white/50 text-sm px-3 py-1.5 rounded-lg hidden"></span>
+        <span id="statTime" class="stat-chip text-white/50 text-sm px-3 py-1.5 rounded-lg hidden"></span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Video Column -->
+      <div class="lg:col-span-7">
+        <div id="videoContainer" class="video-container shadow-2xl shadow-black/40"></div>
+      </div>
+
+      <!-- Text Column -->
+      <div class="lg:col-span-5">
+        <div class="text-panel rounded-2xl h-full max-h-[80vh] overflow-y-auto flex flex-col">
+
+          <!-- Text Header -->
+          <div class="sticky top-0 z-10 px-6 pt-5 pb-4 border-b border-white/5 flex items-center justify-between"
+               style="background: rgba(15,15,35,0.92); backdrop-filter: blur(12px);">
+            <div class="flex items-center gap-2">
+              <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+              <span class="font-semibold text-white/90">Texte reformulé</span>
+            </div>
+            <button onclick="copyText()" id="copyBtn"
+                    class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white/60 hover:text-white hover:bg-white/10 transition">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              Copier
+            </button>
+          </div>
+
+          <!-- Text Content -->
+          <div id="formattedText" class="prose-content px-6 py-5 flex-1"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"></div>
+
+<script>
+async function processVideo() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) return showToast('Colle une URL YouTube pour commencer', 'warn');
+
+  const btn = document.getElementById('btnProcess');
+  btn.disabled = true;
+
+  // Show loading, hide hero subtitle and result
+  document.getElementById('heroSection').classList.add('pb-4');
+  document.getElementById('loadingSection').classList.remove('hidden');
+  document.getElementById('resultSection').classList.add('hidden');
+
+  try {
+    const response = await fetch('/api/process-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.message || data.error);
+    }
+
+    // Hide loading
+    document.getElementById('loadingSection').classList.add('hidden');
+
+    // Show result
+    const resultEl = document.getElementById('resultSection');
+    resultEl.classList.remove('hidden');
+    resultEl.classList.add('fade-in');
+
+    // Title
+    const titleEl = document.getElementById('videoTitle');
+    titleEl.textContent = data.title || 'Vidéo YouTube';
+
+    // Stats
+    const chars = data.formattedText.length;
+    const words = data.formattedText.split(/\s+/).length;
+    const readMin = Math.max(1, Math.round(words / 230));
+
+    const statChars = document.getElementById('statChars');
+    statChars.textContent = `${words.toLocaleString('fr-FR')} mots`;
+    statChars.classList.remove('hidden');
+
+    const statTime = document.getElementById('statTime');
+    statTime.textContent = `~${readMin} min de lecture`;
+    statTime.classList.remove('hidden');
+
+    // Video
+    document.getElementById('videoContainer').innerHTML = `
+      <iframe src="https://www.youtube.com/embed/${data.videoId}?rel=0&modestbranding=1"
+              frameborder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen></iframe>
+    `;
+
+    // Formatted text - convert to proper paragraphs
+    const paragraphs = data.formattedText
+      .split(/\n{2,}/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+      .map(p => {
+        // Bold subtitles
+        if (p.startsWith('**') && p.endsWith('**')) {
+          return `<h3 class="text-white font-semibold text-lg mt-6 mb-2">${p.replace(/\*\*/g, '')}</h3>`;
+        }
+        return `<p>${p.replace(/\n/g, ' ')}</p>`;
+      })
+      .join('');
+
+    document.getElementById('formattedText').innerHTML = paragraphs;
+
+    // Scroll to result
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById('loadingSection').classList.add('hidden');
+    showToast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function copyText() {
+  const text = document.getElementById('formattedText').innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Texte copié dans le presse-papiers');
+  });
+}
+
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const colors = {
+    success: 'bg-emerald-600/90 border-emerald-500/30',
+    error: 'bg-red-600/90 border-red-500/30',
+    warn: 'bg-amber-600/90 border-amber-500/30',
+  };
+  const icons = {
+    success: '<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>',
+    error: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>',
+    warn: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M12 3l9.66 16.5H2.34L12 3z"/>',
+  };
+
+  const toast = document.createElement('div');
+  toast.className = `copy-toast flex items-center gap-2 px-5 py-3 rounded-xl border text-white text-sm font-medium shadow-xl ${colors[type]}`;
+  toast.style.backdropFilter = 'blur(12px)';
+  toast.innerHTML = `
+    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">${icons[type]}</svg>
+    ${message}
+  `;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+}
+</script>
+
+</body>
+</html>
