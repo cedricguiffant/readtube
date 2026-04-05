@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <span class="logo-text">Read<span class="accent">Tube</span></span>
+      </div>
+    </div>
+
+    <div id="notYoutube" class="message hidden">
+      <p class="message-text">Ouvre une vidéo YouTube pour utiliser ReadTube.</p>
+    </div>
+
+    <div id="videoInfo" class="hidden">
+      <div class="video-title" id="videoTitle">Chargement...</div>
+      <button id="btnTransform" class="btn-primary">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Transformer en article
+      </button>
+    </div>
+
+    <div id="loading" class="message hidden">
+      <div class="spinner"></div>
+      <p class="message-text" id="loadingText">Extraction de la transcription...</p>
+    </div>
+
+    <div id="error" class="message hidden">
+      <p class="message-text error-text" id="errorText"></p>
+      <button id="btnRetry" class="btn-secondary">Réessayer</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

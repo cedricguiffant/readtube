@@ -9,6 +9,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.'));
 
+function extractVideoId(url) {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+}
+
 async function fetchVideoTitle(videoId) {
   try {
     const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`);
@@ -21,52 +26,66 @@ async function fetchVideoTitle(videoId) {
 }
 
 app.post('/api/process-video', async (req, res) => {
-  const { url } = req.body;
+  const { rawText, videoId, url } = req.body;
 
-  if (!url) {
-    return res.status(400).json({ error: "URL YouTube requise" });
+  // Mode 1: rawText provided directly (from extension)
+  if (rawText) {
+    const vid = videoId || 'manual';
+    try {
+      const title = vid !== 'manual' ? await fetchVideoTitle(vid) : null;
+      console.log(`Reformulation directe (${rawText.length} caractères)...`);
+      const formattedText = await reformulate(rawText);
+
+      return res.json({
+        success: true,
+        videoId: vid,
+        title,
+        rawTextLength: rawText.length,
+        formattedText
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Erreur lors du traitement",
+        message: error.message
+      });
+    }
   }
 
-  try {
-    const videoId = extractVideoId(url);
-    if (!videoId) {
+  // Mode 2: URL provided (from website - fetch transcript server-side)
+  if (url) {
+    const vid = extractVideoId(url);
+    if (!vid) {
       return res.status(400).json({ error: "URL YouTube invalide" });
     }
 
-    console.log(`Récupération de la transcription pour ${videoId}...`);
-    const [transcriptData, title] = await Promise.all([
-      getTranscript(videoId, 'fr'),
-      fetchVideoTitle(videoId)
-    ]);
+    try {
+      const title = await fetchVideoTitle(vid);
+      console.log(`Récupération de la transcription pour ${vid}...`);
+      const segments = await getTranscript(vid);
+      const transcript = segments.map(s => s.text).join(' ');
 
-    const rawText = transcriptData
-      .map(item => item.text)
-      .join(' ');
+      console.log(`Reformulation (${transcript.length} caractères)...`);
+      const formattedText = await reformulate(transcript);
 
-    console.log(`Reformulation avec Claude (${rawText.length} caractères)...`);
-    const formattedText = await reformulate(rawText);
-
-    res.json({
-      success: true,
-      videoId,
-      title,
-      rawTextLength: rawText.length,
-      formattedText
-    });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      error: "Erreur lors du traitement",
-      message: error.message
-    });
+      return res.json({
+        success: true,
+        videoId: vid,
+        title,
+        rawTextLength: transcript.length,
+        formattedText
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Erreur lors du traitement",
+        message: error.message
+      });
+    }
   }
-});
 
-function extractVideoId(url) {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
-  return match ? match[1] : null;
-}
+  return res.status(400).json({ error: "rawText ou url requis" });
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
