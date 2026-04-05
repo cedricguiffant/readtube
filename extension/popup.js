@@ -15,16 +15,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Get the active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  // Check if we're on a YouTube video page
   if (!tab.url || !tab.url.includes('youtube.com/watch')) {
     notYoutube.classList.remove('hidden');
     return;
   }
 
-  // Show video info panel
   videoInfo.classList.remove('hidden');
-
-  // Get video title from the tab
   videoTitle.textContent = tab.title.replace(' - YouTube', '').trim();
 
   async function startTransform() {
@@ -34,7 +30,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadingText.textContent = 'Extraction de la transcription...';
 
     try {
-      // Ask content script to extract the transcript
+      // Inject content script programmatically then execute extraction
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+
+      // Now send message to the injected content script
       const transcriptResponse = await chrome.tabs.sendMessage(tab.id, { action: 'getTranscript' });
 
       if (!transcriptResponse || !transcriptResponse.success) {
@@ -43,7 +45,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       loadingText.textContent = 'Reformulation avec l\'IA...';
 
-      // Send transcript to the API
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
