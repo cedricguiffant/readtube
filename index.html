@@ -34,6 +34,9 @@
     .btn-primary:active { transform: translateY(0); }
     .btn-primary:disabled { opacity: 0.6; transform: none; box-shadow: none; cursor: not-allowed; }
 
+    .btn-secondary { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); transition: all 0.25s ease; }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); }
+
     .text-panel { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(8px); }
     .text-panel::-webkit-scrollbar { width: 6px; }
     .text-panel::-webkit-scrollbar-track { background: transparent; }
@@ -57,6 +60,19 @@
     @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
 
     .stat-chip { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); }
+
+    .manual-panel { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(8px); }
+
+    .manual-textarea {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.8);
+      resize: vertical;
+    }
+    .manual-textarea:focus { border-color: #ef4444; outline: none; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+    .manual-textarea::placeholder { color: rgba(255,255,255,0.25); }
+
+    .step-number { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
   </style>
 </head>
 <body class="min-h-screen text-white relative overflow-x-hidden">
@@ -84,29 +100,50 @@
       <span class="bg-gradient-to-r from-red-400 to-red-600 bg-clip-text text-transparent">comme un article</span>
     </h1>
     <p class="text-white/50 text-lg mb-10 max-w-lg mx-auto">
-      Colle l'URL d'une vidéo YouTube et on la transforme en texte fluide et agréable à lire.
+      Colle la transcription d'une vidéo YouTube, et on la transforme en texte fluide et agréable à lire.
     </p>
   </div>
 
-  <!-- URL Input Section -->
-  <div id="inputSection" class="max-w-2xl mx-auto px-4 pb-16">
-    <div class="flex gap-3">
-      <div class="search-bar flex-1 rounded-xl flex items-center px-5">
-        <svg class="w-5 h-5 text-white/30 shrink-0 mr-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-        </svg>
+  <!-- Manual Input Section -->
+  <div id="inputSection" class="max-w-3xl mx-auto px-4 pb-16">
+    <div class="manual-panel rounded-2xl p-6 md:p-8">
+
+      <!-- Step 1: URL -->
+      <div class="mb-6">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="step-number w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</div>
+          <h3 class="font-semibold text-white/90">Colle l'URL de la vidéo</h3>
+        </div>
         <input id="urlInput"
                type="text"
                placeholder="https://www.youtube.com/watch?v=..."
-               class="w-full bg-transparent py-4 text-white text-lg placeholder-white/30 outline-none">
+               class="w-full bg-transparent px-5 py-4 rounded-xl text-white text-lg placeholder-white/30 outline-none manual-textarea"
+               style="resize: none;">
       </div>
-      <button onclick="processUrl()"
+
+      <!-- Step 2: Transcript -->
+      <div class="mb-6">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="step-number w-7 h-7 rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</div>
+          <h3 class="font-semibold text-white/90">Colle la transcription</h3>
+        </div>
+        <p class="text-white/40 text-sm mb-3 ml-10">
+          Sur YouTube : sous la vidéo, clique <strong class="text-white/60">... Plus</strong> puis <strong class="text-white/60">Afficher la transcription</strong>. Copie tout le texte.
+        </p>
+        <textarea id="transcriptInput"
+                  rows="8"
+                  placeholder="Colle ici la transcription brute de la vidéo YouTube..."
+                  class="w-full px-5 py-4 rounded-xl text-base manual-textarea"></textarea>
+      </div>
+
+      <!-- Button -->
+      <button onclick="processManual()"
               id="btnProcess"
-              class="btn-primary text-white font-semibold px-8 rounded-xl text-lg flex items-center gap-2 shrink-0">
+              class="btn-primary w-full text-white font-semibold py-4 rounded-xl text-lg flex items-center justify-center gap-2">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
         </svg>
-        Transformer
+        Transformer en article
       </button>
     </div>
   </div>
@@ -179,120 +216,105 @@ function extractVideoId(url) {
   return match ? match[1] : null;
 }
 
-async function processUrl() {
-  const url = document.getElementById('urlInput').value.trim();
-  if (!url) return showToast('Colle l\'URL d\'une vidéo YouTube', 'warn');
+function cleanTranscript(raw) {
+  // Remove timestamps like "0:00", "1:23:45", etc.
+  return raw
+    .replace(/\d{1,2}:\d{2}(:\d{2})?\s*/g, '')
+    .replace(/\n+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
-  const videoId = extractVideoId(url);
-  if (!videoId) return showToast('URL YouTube invalide', 'warn');
+async function processManual() {
+  const url = document.getElementById('urlInput').value.trim();
+  const rawTranscript = document.getElementById('transcriptInput').value.trim();
+
+  if (!rawTranscript) return showToast('Colle la transcription de la vidéo', 'warn');
+
+  const videoId = extractVideoId(url) || null;
+  const rawText = cleanTranscript(rawTranscript);
+
+  if (rawText.length < 50) return showToast('La transcription semble trop courte', 'warn');
 
   const btn = document.getElementById('btnProcess');
   btn.disabled = true;
 
   document.getElementById('inputSection').classList.add('hidden');
-  document.getElementById('heroSection').classList.add('hidden');
   document.getElementById('loadingSection').classList.remove('hidden');
   document.getElementById('resultSection').classList.add('hidden');
 
   try {
-    // Check if result data was passed via URL hash (from extension)
     const response = await fetch('/api/process-video', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ rawText, videoId: videoId || 'manual' })
     });
 
     const data = await response.json();
     if (!data.success) throw new Error(data.message || data.error);
 
-    showResult(data);
+    document.getElementById('loadingSection').classList.add('hidden');
+
+    const resultEl = document.getElementById('resultSection');
+    resultEl.classList.remove('hidden');
+    resultEl.classList.add('fade-in');
+
+    document.getElementById('videoTitle').textContent = data.title || 'Vidéo YouTube';
+
+    const words = data.formattedText.split(/\s+/).length;
+    const readMin = Math.max(1, Math.round(words / 230));
+
+    const statChars = document.getElementById('statChars');
+    statChars.textContent = `${words.toLocaleString('fr-FR')} mots`;
+    statChars.classList.remove('hidden');
+
+    const statTime = document.getElementById('statTime');
+    statTime.textContent = `~${readMin} min de lecture`;
+    statTime.classList.remove('hidden');
+
+    if (videoId) {
+      document.getElementById('videoContainer').innerHTML = `
+        <iframe src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1"
+                frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowfullscreen></iframe>
+      `;
+    } else {
+      document.getElementById('videoContainer').innerHTML = `
+        <div class="absolute inset-0 flex items-center justify-center text-white/30">
+          <p>Aucune vidéo associée</p>
+        </div>
+      `;
+    }
+
+    const paragraphs = data.formattedText
+      .split(/\n{2,}/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+      .map(p => {
+        if (p.startsWith('**') && p.endsWith('**')) {
+          return `<h3 class="text-white font-semibold text-lg mt-6 mb-2">${p.replace(/\*\*/g, '')}</h3>`;
+        }
+        return `<p>${p.replace(/\n/g, ' ')}</p>`;
+      })
+      .join('');
+
+    document.getElementById('formattedText').innerHTML = paragraphs;
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch (err) {
     console.error(err);
     document.getElementById('loadingSection').classList.add('hidden');
     document.getElementById('inputSection').classList.remove('hidden');
-    document.getElementById('heroSection').classList.remove('hidden');
     showToast(err.message, 'error');
   } finally {
     btn.disabled = false;
   }
 }
 
-function showResult(data) {
-  document.getElementById('loadingSection').classList.add('hidden');
-
-  const resultEl = document.getElementById('resultSection');
-  resultEl.classList.remove('hidden');
-  resultEl.classList.add('fade-in');
-
-  document.getElementById('videoTitle').textContent = data.title || 'Vidéo YouTube';
-
-  const words = data.formattedText.split(/\s+/).length;
-  const readMin = Math.max(1, Math.round(words / 230));
-
-  const statChars = document.getElementById('statChars');
-  statChars.textContent = `${words.toLocaleString('fr-FR')} mots`;
-  statChars.classList.remove('hidden');
-
-  const statTime = document.getElementById('statTime');
-  statTime.textContent = `~${readMin} min de lecture`;
-  statTime.classList.remove('hidden');
-
-  const videoId = data.videoId;
-  if (videoId && videoId !== 'manual') {
-    document.getElementById('videoContainer').innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1"
-              frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowfullscreen></iframe>
-    `;
-  } else {
-    document.getElementById('videoContainer').innerHTML = `
-      <div class="absolute inset-0 flex items-center justify-center text-white/30">
-        <p>Aucune vidéo associée</p>
-      </div>
-    `;
-  }
-
-  const paragraphs = data.formattedText
-    .split(/\n{2,}/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0)
-    .map(p => {
-      if (p.startsWith('**') && p.endsWith('**')) {
-        return `<h3 class="text-white font-semibold text-lg mt-6 mb-2">${p.replace(/\*\*/g, '')}</h3>`;
-      }
-      return `<p>${p.replace(/\n/g, ' ')}</p>`;
-    })
-    .join('');
-
-  document.getElementById('formattedText').innerHTML = paragraphs;
-  resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-// Check for extension result data in URL hash on page load
-window.addEventListener('DOMContentLoaded', () => {
-  const hash = window.location.hash;
-  if (hash && hash.startsWith('#result=')) {
-    try {
-      const data = JSON.parse(decodeURIComponent(hash.substring(8)));
-      if (data.success && data.formattedText) {
-        document.getElementById('inputSection').classList.add('hidden');
-        document.getElementById('heroSection').classList.add('hidden');
-        showResult(data);
-        // Clean the URL hash
-        history.replaceState(null, '', window.location.pathname);
-      }
-    } catch (e) {
-      console.error('Failed to parse result from hash:', e);
-    }
-  }
-});
-
 function resetForm() {
   document.getElementById('resultSection').classList.add('hidden');
   document.getElementById('inputSection').classList.remove('hidden');
-  document.getElementById('heroSection').classList.remove('hidden');
-  document.getElementById('urlInput').value = '';
+  document.getElementById('transcriptInput').value = '';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
