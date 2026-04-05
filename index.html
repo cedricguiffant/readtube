@@ -122,7 +122,7 @@
         </div>
         <span class="text-xl font-bold tracking-tight">Read<span class="text-red-500">Tube</span></span>
       </div>
-      <a href="https://github.com" target="_blank" class="text-white/40 hover:text-white/70 text-sm transition">GitHub</a>
+      <a href="https://github.com/cedricguiffant/readtube" target="_blank" class="text-white/40 hover:text-white/70 text-sm transition">GitHub</a>
     </div>
   </nav>
 
@@ -167,8 +167,6 @@
 
   <!-- Result Section -->
   <div id="resultSection" class="hidden max-w-7xl mx-auto px-4 pb-16 fade-in">
-
-    <!-- Title + Stats -->
     <div class="mb-8">
       <h2 id="videoTitle" class="text-2xl md:text-3xl font-bold mb-3"></h2>
       <div class="flex flex-wrap gap-2">
@@ -178,17 +176,11 @@
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-      <!-- Video Column -->
       <div class="lg:col-span-7">
         <div id="videoContainer" class="video-container shadow-2xl shadow-black/40"></div>
       </div>
-
-      <!-- Text Column -->
       <div class="lg:col-span-5">
         <div class="text-panel rounded-2xl h-full max-h-[80vh] overflow-y-auto flex flex-col">
-
-          <!-- Text Header -->
           <div class="sticky top-0 z-10 px-6 pt-5 pb-4 border-b border-white/5 flex items-center justify-between"
                style="background: rgba(15,15,35,0.92); backdrop-filter: blur(12px);">
             <div class="flex items-center gap-2">
@@ -206,43 +198,150 @@
               Copier
             </button>
           </div>
-
-          <!-- Text Content -->
           <div id="formattedText" class="prose-content px-6 py-5 flex-1"></div>
         </div>
       </div>
-
     </div>
   </div>
 
-  <!-- Toast container -->
   <div id="toastContainer" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"></div>
 
 <script>
+// ── Client-side transcript fetcher ──
+function extractVideoId(url) {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+  return match ? match[1] : null;
+}
+
+function decodeEntities(text) {
+  const el = document.createElement('textarea');
+  el.innerHTML = text;
+  return el.value;
+}
+
+function parseTranscriptXml(xml) {
+  const results = [];
+  // Format: <text start="..." dur="...">...</text>
+  const regex = /<text start="([^"]*)" dur="([^"]*)">([^<]*)<\/text>/g;
+  let match;
+  while ((match = regex.exec(xml)) !== null) {
+    const text = decodeEntities(match[3]).trim();
+    if (text) results.push(text);
+  }
+  if (results.length > 0) return results;
+
+  // Format: <p t="..." d="..."><s>...</s></p>
+  const pRegex = /<p\s+t="\d+"\s+d="\d+"[^>]*>([\s\S]*?)<\/p>/g;
+  while ((match = pRegex.exec(xml)) !== null) {
+    let text = '';
+    const sRegex = /<s[^>]*>([^<]*)<\/s>/g;
+    let sMatch;
+    while ((sMatch = sRegex.exec(match[1])) !== null) text += sMatch[1];
+    if (!text) text = match[1].replace(/<[^>]+>/g, '');
+    text = decodeEntities(text).trim();
+    if (text) results.push(text);
+  }
+  return results;
+}
+
+async function fetchTranscriptClientSide(videoId) {
+  // Use a CORS proxy to fetch from YouTube InnerTube API
+  const proxyUrls = [
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`,
+    `https://corsproxy.io/?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`,
+  ];
+
+  for (const proxyUrl of proxyUrls) {
+    try {
+      const response = await fetch(proxyUrl);
+      if (!response.ok) continue;
+      const html = await response.text();
+
+      // Extract caption tracks from ytInitialPlayerResponse
+      const match = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\})\s*;/s);
+      if (!match) continue;
+
+      let playerData;
+      try { playerData = JSON.parse(match[1]); } catch { continue; }
+
+      const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (!Array.isArray(tracks) || tracks.length === 0) continue;
+
+      // Pick French or first track
+      let track = tracks.find(t => t.languageCode === 'fr') || tracks[0];
+      if (!track?.baseUrl) continue;
+
+      // Fetch the transcript XML via proxy
+      const xmlProxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(track.baseUrl)}`;
+      const xmlResponse = await fetch(xmlProxy);
+      if (!xmlResponse.ok) continue;
+
+      const xml = await xmlResponse.text();
+      const segments = parseTranscriptXml(xml);
+      if (segments.length > 0) return segments;
+    } catch { continue; }
+  }
+
+  // Fallback: direct InnerTube API (may work from some browsers)
+  try {
+    const response = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: { client: { clientName: 'WEB', clientVersion: '2.20240313.05.00' } },
+        videoId,
+      }),
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      if (Array.isArray(tracks) && tracks.length > 0) {
+        let track = tracks.find(t => t.languageCode === 'fr') || tracks[0];
+        if (track?.baseUrl) {
+          const xmlRes = await fetch(track.baseUrl);
+          if (xmlRes.ok) {
+            const segments = parseTranscriptXml(await xmlRes.text());
+            if (segments.length > 0) return segments;
+          }
+        }
+      }
+    }
+  } catch { /* ignore */ }
+
+  throw new Error("Impossible de récupérer la transcription. Vérifie que la vidéo a des sous-titres activés.");
+}
+
+// ── Main process ──
 async function processVideo() {
   const url = document.getElementById('urlInput').value.trim();
   if (!url) return showToast('Colle une URL YouTube pour commencer', 'warn');
 
+  const videoId = extractVideoId(url);
+  if (!videoId) return showToast('URL YouTube invalide', 'error');
+
   const btn = document.getElementById('btnProcess');
   btn.disabled = true;
 
-  // Show loading, hide hero subtitle and result
   document.getElementById('heroSection').classList.add('pb-4');
   document.getElementById('loadingSection').classList.remove('hidden');
   document.getElementById('resultSection').classList.add('hidden');
 
   try {
+    // Step 1: Get transcript CLIENT-SIDE (from user's browser, not blocked)
+    document.getElementById('loadingStatus').innerHTML = 'Extraction de la transcription<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
+    const segments = await fetchTranscriptClientSide(videoId);
+    const rawText = segments.join(' ');
+
+    // Step 2: Send raw text to server for reformulation
+    document.getElementById('loadingStatus').innerHTML = 'Reformulation avec l\'IA<span class="loading-dots"><span>.</span><span>.</span><span>.</span></span>';
     const response = await fetch('/api/process-video', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ rawText, videoId })
     });
 
     const data = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.message || data.error);
-    }
+    if (!data.success) throw new Error(data.message || data.error);
 
     // Hide loading
     document.getElementById('loadingSection').classList.add('hidden');
@@ -252,12 +351,8 @@ async function processVideo() {
     resultEl.classList.remove('hidden');
     resultEl.classList.add('fade-in');
 
-    // Title
-    const titleEl = document.getElementById('videoTitle');
-    titleEl.textContent = data.title || 'Vidéo YouTube';
+    document.getElementById('videoTitle').textContent = data.title || 'Vidéo YouTube';
 
-    // Stats
-    const chars = data.formattedText.length;
     const words = data.formattedText.split(/\s+/).length;
     const readMin = Math.max(1, Math.round(words / 230));
 
@@ -269,7 +364,6 @@ async function processVideo() {
     statTime.textContent = `~${readMin} min de lecture`;
     statTime.classList.remove('hidden');
 
-    // Video
     document.getElementById('videoContainer').innerHTML = `
       <iframe src="https://www.youtube.com/embed/${data.videoId}?rel=0&modestbranding=1"
               frameborder="0"
@@ -277,13 +371,11 @@ async function processVideo() {
               allowfullscreen></iframe>
     `;
 
-    // Formatted text - convert to proper paragraphs
     const paragraphs = data.formattedText
       .split(/\n{2,}/)
       .map(p => p.trim())
       .filter(p => p.length > 0)
       .map(p => {
-        // Bold subtitles
         if (p.startsWith('**') && p.endsWith('**')) {
           return `<h3 class="text-white font-semibold text-lg mt-6 mb-2">${p.replace(/\*\*/g, '')}</h3>`;
         }
@@ -292,8 +384,6 @@ async function processVideo() {
       .join('');
 
     document.getElementById('formattedText').innerHTML = paragraphs;
-
-    // Scroll to result
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   } catch (err) {
@@ -307,9 +397,7 @@ async function processVideo() {
 
 function copyText() {
   const text = document.getElementById('formattedText').innerText;
-  navigator.clipboard.writeText(text).then(() => {
-    showToast('Texte copié dans le presse-papiers');
-  });
+  navigator.clipboard.writeText(text).then(() => showToast('Texte copié dans le presse-papiers'));
 }
 
 function showToast(message, type = 'success') {

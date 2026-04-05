@@ -1,10 +1,4 @@
 import { reformulate } from '../reformulate.js';
-import { getTranscript } from '../transcript.js';
-
-function extractVideoId(url) {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
-  return match ? match[1] : null;
-}
 
 async function fetchVideoTitle(videoId) {
   try {
@@ -12,9 +6,7 @@ async function fetchVideoTitle(videoId) {
     if (!res.ok) return null;
     const data = await res.json();
     return data.title;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export default async function handler(req, res) {
@@ -22,35 +14,17 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  const { rawText, videoId } = req.body;
 
-  const { url } = req.body;
-
-  if (!url) {
-    return res.status(400).json({ error: "URL YouTube requise" });
+  if (!rawText || !videoId) {
+    return res.status(400).json({ error: "rawText et videoId requis" });
   }
 
   try {
-    const videoId = extractVideoId(url);
-    if (!videoId) {
-      return res.status(400).json({ error: "URL YouTube invalide" });
-    }
-
-    const [transcriptData, title] = await Promise.all([
-      getTranscript(videoId, 'fr'),
-      fetchVideoTitle(videoId)
-    ]);
-
-    const rawText = transcriptData
-      .map(item => item.text)
-      .join(' ');
-
+    const title = await fetchVideoTitle(videoId);
     const formattedText = await reformulate(rawText);
 
     res.json({
