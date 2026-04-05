@@ -15,12 +15,13 @@
       </div>
     </div>
 
-    <div id="notYoutube" class="message hidden">
-      <p class="message-text">Ouvre une vidéo YouTube pour utiliser ReadTube.</p>
-    </div>
+    <div id="formSection">
+      <div class="video-title" id="videoTitle"></div>
 
-    <div id="videoInfo" class="hidden">
-      <div class="video-title" id="videoTitle">Chargement...</div>
+      <label class="label">Colle la transcription :</label>
+      <p class="hint">YouTube → ... Plus → Afficher la transcription → Copier</p>
+      <textarea id="transcriptInput" class="textarea" rows="6" placeholder="Colle la transcription ici..."></textarea>
+
       <button id="btnTransform" class="btn-primary">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -31,7 +32,7 @@
 
     <div id="loading" class="message hidden">
       <div class="spinner"></div>
-      <p class="message-text" id="loadingText">Extraction de la transcription...</p>
+      <p class="message-text" id="loadingText">Reformulation avec l'IA...</p>
     </div>
 
     <div id="error" class="message hidden">

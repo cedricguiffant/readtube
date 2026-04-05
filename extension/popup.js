@@ -2,8 +2,7 @@ const API_URL = 'https://readtube-nine.vercel.app/api/process-video';
 const SITE_URL = 'https://readtube-nine.vercel.app';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const notYoutube = document.getElementById('notYoutube');
-  const videoInfo = document.getElementById('videoInfo');
+  const formSection = document.getElementById('formSection');
   const loading = document.getElementById('loading');
   const error = document.getElementById('error');
   const btnTransform = document.getElementById('btnTransform');
@@ -11,46 +10,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   const videoTitle = document.getElementById('videoTitle');
   const loadingText = document.getElementById('loadingText');
   const errorText = document.getElementById('errorText');
+  const transcriptInput = document.getElementById('transcriptInput');
 
   // Get the active tab
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (!tab.url || !tab.url.includes('youtube.com/watch')) {
-    notYoutube.classList.remove('hidden');
-    return;
+  // Show video title if on YouTube
+  let videoId = null;
+  if (tab.url && tab.url.includes('youtube.com/watch')) {
+    const url = new URL(tab.url);
+    videoId = url.searchParams.get('v');
+    videoTitle.textContent = tab.title.replace(' - YouTube', '').trim();
+  } else {
+    videoTitle.textContent = 'Colle la transcription d\'une vidéo YouTube';
   }
 
-  videoInfo.classList.remove('hidden');
-  videoTitle.textContent = tab.title.replace(' - YouTube', '').trim();
+  function cleanTranscript(raw) {
+    return raw
+      .replace(/\d{1,2}:\d{2}(:\d{2})?\s*/g, '')
+      .replace(/\n+/g, ' ')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  }
 
   async function startTransform() {
-    videoInfo.classList.add('hidden');
+    const raw = transcriptInput.value.trim();
+    if (!raw) return;
+
+    const rawText = cleanTranscript(raw);
+    if (rawText.length < 50) {
+      errorText.textContent = 'La transcription semble trop courte.';
+      error.classList.remove('hidden');
+      return;
+    }
+
+    formSection.classList.add('hidden');
     error.classList.add('hidden');
     loading.classList.remove('hidden');
-    loadingText.textContent = 'Extraction de la transcription...';
+    loadingText.textContent = 'Reformulation avec l\'IA...';
 
     try {
-      // Inject content script programmatically then execute extraction
-      const results = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content.js']
-      });
-
-      // Now send message to the injected content script
-      const transcriptResponse = await chrome.tabs.sendMessage(tab.id, { action: 'getTranscript' });
-
-      if (!transcriptResponse || !transcriptResponse.success) {
-        throw new Error(transcriptResponse?.error || 'Impossible d\'extraire la transcription. La vidéo a-t-elle des sous-titres ?');
-      }
-
-      loadingText.textContent = 'Reformulation avec l\'IA...';
-
       const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          rawText: transcriptResponse.transcript,
-          videoId: transcriptResponse.videoId
+          rawText,
+          videoId: videoId || 'manual'
         })
       });
 
@@ -60,12 +65,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         throw new Error(data.message || data.error || 'Erreur API');
       }
 
-      // Store result and open in new tab
+      // Open result on the site
       const resultData = encodeURIComponent(JSON.stringify(data));
       chrome.tabs.create({ url: `${SITE_URL}#result=${resultData}` });
 
     } catch (err) {
       loading.classList.add('hidden');
+      formSection.classList.remove('hidden');
       error.classList.remove('hidden');
       errorText.textContent = err.message;
     }
