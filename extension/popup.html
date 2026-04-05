@@ -13,15 +13,19 @@
         </div>
         <span class="logo-text">Read<span class="accent">Tube</span></span>
       </div>
+      <button id="btnBack" class="btn-icon hidden" title="Retour">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </button>
     </div>
 
+    <!-- Form -->
     <div id="formSection">
       <div class="video-title" id="videoTitle"></div>
-
       <label class="label">Colle la transcription :</label>
-      <p class="hint">YouTube → ... Plus → Afficher la transcription → Copier</p>
+      <p class="hint">YouTube → ... Plus → Afficher la transcription → Ctrl+A → Ctrl+C</p>
       <textarea id="transcriptInput" class="textarea" rows="6" placeholder="Colle la transcription ici..."></textarea>
-
       <button id="btnTransform" class="btn-primary">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -30,14 +34,39 @@
       </button>
     </div>
 
+    <!-- Loading -->
     <div id="loading" class="message hidden">
       <div class="spinner"></div>
       <p class="message-text" id="loadingText">Reformulation avec l'IA...</p>
+      <p class="hint" style="margin-top:8px">15 à 30 secondes</p>
     </div>
 
+    <!-- Error -->
     <div id="error" class="message hidden">
       <p class="message-text error-text" id="errorText"></p>
       <button id="btnRetry" class="btn-secondary">Réessayer</button>
+    </div>
+
+    <!-- Result -->
+    <div id="resultSection" class="hidden">
+      <div class="result-header">
+        <h2 class="result-title" id="resultTitle"></h2>
+        <div class="result-stats">
+          <span class="stat" id="statWords"></span>
+          <span class="stat" id="statTime"></span>
+        </div>
+      </div>
+      <div class="result-text" id="resultText"></div>
+      <div class="result-actions">
+        <button id="btnCopy" class="btn-primary btn-small">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+          Copier le texte
+        </button>
+        <button id="btnNew" class="btn-secondary btn-small">Nouvelle vidéo</button>
+      </div>
     </div>
   </div>
 
