@@ -1,5 +1,5 @@
 import { reformulate } from '../reformulate.js';
-import { fetchTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+import { getTranscript } from '../transcript.js';
 
 function extractVideoId(url) {
   const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
@@ -18,7 +18,6 @@ async function fetchVideoTitle(videoId) {
 }
 
 export default async function handler(req, res) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -44,7 +43,7 @@ export default async function handler(req, res) {
     }
 
     const [transcriptData, title] = await Promise.all([
-      fetchTranscript(videoId),
+      getTranscript(videoId, 'fr'),
       fetchVideoTitle(videoId)
     ]);
 

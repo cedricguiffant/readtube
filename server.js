@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { reformulate } from './reformulate.js';
-import { fetchTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
+import { getTranscript } from './transcript.js';
 
 const app = express();
 app.use(cors());
@@ -35,7 +35,7 @@ app.post('/api/process-video', async (req, res) => {
 
     console.log(`Récupération de la transcription pour ${videoId}...`);
     const [transcriptData, title] = await Promise.all([
-      fetchTranscript(videoId),
+      getTranscript(videoId, 'fr'),
       fetchVideoTitle(videoId)
     ]);
 
